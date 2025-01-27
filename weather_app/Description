@@ -1,0 +1,48 @@
+Description
+The Weather App - Surya is a simple graphical user interface (GUI) application built using Python's Tkinter library. This application allows users to select a state and then choose a city from that state to retrieve and display the current weather information, including the weather condition, description, temperature, and atmospheric pressure.
+
+*Features*
+State and City Selection: Users can select a state from a dropdown menu, which dynamically updates to show the corresponding cities.
+Weather Information Display: After selecting a city, users can click the "Get Weather" button to fetch and display:
+Current weather condition (e.g., Sunny, Rainy)
+Detailed weather description (e.g., Clear sky, Light rain)
+Current temperature in Celsius
+Atmospheric pressure in hPa
+User-Friendly Interface: Designed with a clean and intuitive layout for easy navigation.
+
+Technologies Used
+Python: The programming language used for developing the application.
+Tkinter: Python's standard GUI toolkit for creating the desktop application.
+Requests: A simple HTTP library for making API calls to retrieve weather data.
+OpenWeatherMap API: A web service that provides weather data based on city names.
+
+Installation
+Clone the repository:
+Copy
+git clone https://github.com/yourusername/weather-app-surya.git
+
+Navigate to the project directory:
+Copy
+cd weather-app-surya
+
+Install the required packages:
+Copy
+pip install requests
+
+Run the application:
+Copy
+python weather_app.py
+
+Usage
+Launch the application.
+Select a state from the dropdown menu.
+Choose a city from the updated city dropdown.
+Click the "Get Weather" button to display the current weather information.
+
+Contributing
+Contributions are welcome! Feel free to submit a pull request or open an issue for any suggestions or improvements.
+
+License
+This project is licensed under the MIT License.
+
+Feel free to modify any sections to better fit your project's specifics!
