@@ -1,23 +1,26 @@
-🛑 Website Blocker
-This Python script blocks access to specific websites by modifying the system's hosts file. It ensures the listed websites remain blocked until a specified end date and automatically restores access after the time expires.
+Instagram Automation Bot
+This project is a GUI-based Instagram bot built using Python, Tkinter, and Instabot. It provides an intuitive interface for automating various Instagram tasks, including:
 
-✨ Features
-Blocks websites by redirecting them to 127.0.0.1.
-Continuously enforces restrictions until the given end date (January 15, 2025).
-Automatically removes the restrictions after the blocking period ends.
+Features:
+✅ Login System – Securely login with your Instagram credentials.
+✅ Follow Users – Follow multiple users by entering their usernames.
+✅ Unfollow Users – Unfollow specific users easily.
+✅ Send Direct Messages – Send personalized messages to multiple users.
+✅ Schedule Posts – Upload images with captions after a specified delay.
 
-🛠️ How It Works
-The script checks if the current date is before January 15, 2025.
-If the condition is met, it adds the specified websites (www.wscubetech.com, www.pw.live) to the hosts file.
-Once the blocking period expires, it removes the blocked websites from the hosts file, restoring access.
-The script runs in a continuous loop, checking and updating the blocking status at intervals.
+Technologies Used:
+Python (for automation logic)
+Tkinter (for GUI interface)
+Instabot (for interacting with Instagram API)
 
-⚠️ Important Notes
-Administrator/root privileges are required to modify the hosts file.
-The script is designed for Windows (C:/Windows/System32/drivers/etc/hosts). Modify the path for other OS.
-Editing the hosts file incorrectly can impact network connectivity, so use with caution.
+How to Use:
+Install dependencies using:
+bash
 
-🚀 How to Use
-Run the script with Python (python script.py).
-Ensure administrator/root privileges are granted.
-The script will block the listed websites until the set date.
+pip install instabot tkinter
+Run the script:
+bash
+
+python instagram_bot.py
+Enter your credentials and use the buttons to automate tasks.
+⚠️ Disclaimer: Use this bot responsibly. Instagram may ban accounts for excessive automation.
