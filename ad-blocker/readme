@@ -1,0 +1,23 @@
+Website Blocker
+This Python script blocks access to specific websites by modifying the system's hosts file. It continuously monitors the current date and ensures that the specified websites remain blocked until a predefined end date.
+
+✨ Features
+Blocks access to websites by redirecting them to 127.0.0.1.
+Runs in a loop to enforce restrictions until the specified end_time.
+Automatically unblocks websites after the blocking period ends.
+
+🛠️ How It Works
+The script checks if the current date is before January 15, 2025.
+If true, it adds the specified websites (www.wscubetech.com, www.pw.live) to the hosts file, redirecting them to 127.0.0.1.
+After the blocking period ends, the script removes the blocked websites from the hosts file, restoring access.
+The script runs continuously, checking the status at regular intervals.
+
+⚠️ Important Notes
+This script modifies system files (hosts file), so administrator/root privileges are required.
+The hosts file path is set for Windows (C:/Windows/System32/drivers/etc/hosts). Update it accordingly for other operating systems.
+Be cautious when modifying the hosts file, as incorrect changes can affect internet connectivity.
+
+🚀 How to Use
+Run the script with Python.
+Ensure that it has sufficient permissions to modify the hosts file.
+The specified websites will be blocked until the set date.
