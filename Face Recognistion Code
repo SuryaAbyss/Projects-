@@ -1,0 +1,222 @@
+import cv2
+import mediapipe as mp
+import numpy as np
+import csv
+from datetime import datetime
+import os
+
+# ================= Configuration =================
+IMAGES_DIR = os.path.join(os.path.dirname(__file__), 'images')
+CSV_DIR = os.path.expanduser("~\\Documents\\Attendance")
+FACE_IMAGE_SIZE = 500            # For better feature preservation
+ROI_EXPANSION = 0.35             # For better face capture
+MIN_DETECTION_CONFIDENCE = 0.4   # More lenient detection threshold
+# ==================================================
+
+# Create necessary directories
+os.makedirs(IMAGES_DIR, exist_ok=True)
+os.makedirs(CSV_DIR, exist_ok=True)
+
+# Initialize MediaPipe with enhanced settings
+mp_face_detection = mp.solutions.face_detection
+mp_face_mesh = mp.solutions.face_mesh
+
+face_detection = mp_face_detection.FaceDetection(
+    min_detection_confidence=MIN_DETECTION_CONFIDENCE,
+    model_selection=1  # Use model for closer faces
+)
+
+face_mesh = mp_face_mesh.FaceMesh(
+    static_image_mode=True,
+    max_num_faces=1,
+    refine_landmarks=True,       # Enable iris refinement
+    min_detection_confidence=0.7
+)
+
+def get_face_encoding(image):
+    """Enhanced encoding with pose normalization"""
+    results = face_mesh.process(cv2.cvtColor(image, cv2.COLOR_BGR2RGB))
+    if results.multi_face_landmarks:
+        # Get face rotation matrix for pose normalization
+        landmarks = results.multi_face_landmarks[0].landmark
+        image_rows, image_cols, _ = image.shape
+        
+        # Extract key landmarks for pose estimation
+        pose_landmarks = np.array([
+            [landmarks[1].x * image_cols, landmarks[1].y * image_rows],  # Right eye
+            [landmarks[4].x * image_cols, landmarks[4].y * image_rows],  # Left eye
+            [landmarks[2].x * image_cols, landmarks[2].y * image_rows],  # Nose bridge
+        ], dtype=np.float64)
+        
+        # Calculate rotation angle
+        dY = pose_landmarks[1][1] - pose_landmarks[0][1]
+        dX = pose_landmarks[1][0] - pose_landmarks[0][0]
+        angle = np.degrees(np.arctan2(dY, dX))
+        
+        # Get rotation matrix and warp face
+        center = (pose_landmarks[2][0], pose_landmarks[2][1])
+        M = cv2.getRotationMatrix2D(center, angle, 1.0)
+        aligned_face = cv2.warpAffine(image, M, (image_cols, image_rows))
+        
+        # Get aligned landmarks
+        aligned_results = face_mesh.process(cv2.cvtColor(aligned_face, cv2.COLOR_BGR2RGB))
+        if aligned_results.multi_face_landmarks:
+            aligned_landmarks = aligned_results.multi_face_landmarks[0].landmark
+            encoding = np.array([[lm.x, lm.y, lm.z] for lm in aligned_landmarks]).flatten()
+            norm = np.linalg.norm(encoding)
+            return encoding / norm if norm != 0 else None
+    return None
+
+def calculate_optimal_threshold(encodings):
+    """Improved dynamic threshold calculation"""
+    distances = []
+    for i in range(len(encodings)):
+        for j in range(i+1, len(encodings)):
+            distances.append(np.linalg.norm(encodings[i] - encodings[j]))
+    return np.mean(distances) * 0.45  # More adaptive threshold
+
+def preprocess_face(face_roi):
+    """Enhanced face preprocessing"""
+    if face_roi.size == 0:
+        return None
+        
+    # Maintain aspect ratio while resizing
+    aspect_ratio = face_roi.shape[1] / face_roi.shape[0]
+    new_width = int(FACE_IMAGE_SIZE * aspect_ratio)
+    resized_roi = cv2.resize(face_roi, (new_width, FACE_IMAGE_SIZE))
+    
+    # Pad to square format
+    pad_left = (FACE_IMAGE_SIZE - new_width) // 2
+    pad_right = FACE_IMAGE_SIZE - new_width - pad_left
+    padded_roi = cv2.copyMakeBorder(resized_roi, 0, 0, pad_left, pad_right, 
+                                  cv2.BORDER_CONSTANT, value=(0,0,0))
+    
+    # Apply CLAHE for lighting normalization
+    lab = cv2.cvtColor(padded_roi, cv2.COLOR_BGR2LAB)
+    l, a, b = cv2.split(lab)
+    clahe = cv2.createCLAHE(clipLimit=3.0, tileGridSize=(8,8))
+    limg = clahe.apply(l)
+    processed_roi = cv2.merge((limg, a, b))
+    return cv2.cvtColor(processed_roi, cv2.COLOR_LAB2BGR)
+
+# Load known faces
+known_face_encodings = []
+known_face_names = ["Satya Nadella", "Jeff Bezos", "Elon Musk", "Kajal Aggarwal"]
+image_files = [
+    "satya_nadella.jpg",
+    "jeff_bezos.jpg",
+    "elon_musk.jpg",
+    "kajal_aggarwal.jpg"
+]
+
+print("Loading reference images...")
+for image_file in image_files:
+    image_path = os.path.join(IMAGES_DIR, image_file)
+    if not os.path.exists(image_path):
+        print(f"Error: Reference image not found: {image_path}")
+        print("Please add the following images to the 'images' directory:")
+        for img in image_files:
+            print(f"- {img}")
+        exit(1)
+    
+    image = cv2.imread(image_path)
+    if image is None:
+        print(f"Error: Could not read image {image_path}")
+        exit(1)
+    encoding = get_face_encoding(image)
+    if encoding is not None:
+        known_face_encodings.append(encoding)
+    else:
+        print(f"Warning: No face detected in {image_file}")
+
+if not known_face_encodings:
+    print("Error: No valid face encodings found in reference images")
+    exit(1)
+
+# Calculate recognition threshold
+recognition_threshold = calculate_optimal_threshold(known_face_encodings)
+
+# Initialize video capture
+cap = cv2.VideoCapture(0)  # Use 0 for default camera
+if not cap.isOpened():
+    print("Error: Could not open camera")
+    exit(1)
+
+marked = set()  # Keep track of marked attendance
+
+while True:
+    ret, frame = cap.read()
+    if not ret:
+        print("Error: Could not read frame")
+        break
+
+    # Detect faces in the frame
+    results = face_detection.process(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
+
+    if results.detections:
+        for detection in results.detections:
+            # Enhanced ROI handling with dynamic expansion
+            bbox = detection.location_data.relative_bounding_box
+            ih, iw = frame.shape[:2]
+            
+            # Dynamic expansion based on face size
+            face_size = max(bbox.width, bbox.height)
+            expansion = ROI_EXPANSION + (face_size * 0.5)  # Adaptive expansion
+            
+            x = int((bbox.xmin - expansion) * iw)
+            y = int((bbox.ymin - expansion * 1.2) * ih)  # Extra top expansion
+            w = int((bbox.width + 2*expansion) * iw)
+            h = int((bbox.height + 2*expansion * 1.5) * ih)  # More vertical expansion
+            
+            # Boundary checks with safe margins
+            x, y = max(10, x), max(10, y)
+            w, h = min(iw-x-10, w), min(ih-y-10, h)
+            
+            face_roi = frame[y:y+h, x:x+w]
+            processed_roi = preprocess_face(face_roi)
+            
+            if processed_roi is not None:
+                encoding = get_face_encoding(processed_roi)
+                
+                if encoding is not None:
+                    # Calculate distances
+                    distances = [np.linalg.norm(encoding - enc) for enc in known_face_encodings]
+                    best_match = np.argmin(distances)
+                    min_distance = distances[best_match]
+                    
+                    # Confidence check
+                    sorted_dists = sorted(distances)
+                    confidence = sorted_dists[1] - sorted_dists[0] if len(sorted_dists) > 1 else 0
+                    
+                    if min_distance < recognition_threshold and confidence > recognition_threshold * 0.3:
+                        name = known_face_names[best_match]
+                        # Attendance logic
+                        if name not in marked:
+                            marked.add(name)
+                            # Save attendance to CSV
+                            now = datetime.now()
+                            current_date = now.strftime("%Y-%m-%d")
+                            current_time = now.strftime("%H:%M:%S")
+                            
+                            csv_path = os.path.join(CSV_DIR, f"{current_date}.csv")
+                            with open(csv_path, "a+", newline="") as f:
+                                lnwriter = csv.writer(f)
+                                if f.tell() == 0:
+                                    lnwriter.writerow(["Name", "Time"])
+                                lnwriter.writerow([name, current_time])
+                                print(f"{name} marked present at {current_time}")
+                    else:
+                        name = "Unknown"
+                    
+                    # Display results
+                    color = (0, 255, 0) if name != "Unknown" else (0, 0, 255)
+                    cv2.rectangle(frame, (x, y), (x+w, y+h), color, 2)
+                    cv2.putText(frame, f"{name} ({min_distance:.2f})", (x, y-10), 
+                               cv2.FONT_HERSHEY_SIMPLEX, 0.7, color, 2)
+
+    cv2.imshow('Face Recognition System', frame)
+    if cv2.waitKey(1) & 0xFF == ord('q'):
+        break
+
+cap.release()
+cv2.destroyAllWindows() 
